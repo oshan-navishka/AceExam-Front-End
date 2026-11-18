@@ -1,13 +1,36 @@
 import { useEffect, useState } from 'react';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  LineChart, Line, PieChart, Pie, Cell, Legend,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
 } from 'recharts';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { fetchDashboard, fetchSubjectAnalytics } from '../store/slices/analyticsSlice';
 import { fetchSubjects } from '../store/slices/subjectSlice';
+import {
+  IconBarChart,
+  IconTrendingUp,
+  IconBookOpen,
+  IconTrophy,
+  IconClipboardList,
+  IconCalendar,
+  IconFileText,
+  IconCalendarCheck,
+  IconCheck,
+  IconAlertTriangle
+} from '../components/common/Icons';
 
-const COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4'];
+const CHART_COLORS = ['#4f46e5', '#7c3aed', '#06b6d4', '#10b981', '#f59e0b', '#f43f5e'];
 
 export default function Analytics() {
   const dispatch = useAppDispatch();
@@ -21,75 +44,118 @@ export default function Analytics() {
   }, [dispatch]);
 
   useEffect(() => {
-    if (selectedSubject) dispatch(fetchSubjectAnalytics(selectedSubject));
+    if (selectedSubject) {
+      dispatch(fetchSubjectAnalytics(selectedSubject));
+    }
   }, [selectedSubject, dispatch]);
 
   if (!dashboard && isLoading) {
-    return <div className="flex justify-center py-12"><div className="spinner w-10 h-10" /></div>;
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <div className="spinner w-9 h-9" />
+        <p className="text-sm text-slate-400">Loading performance metrics...</p>
+      </div>
+    );
   }
 
   const stats = dashboard?.stats;
 
-  const overviewPie = stats ? [
-    { name: 'Subjects', value: stats.totalSubjects },
-    { name: 'Papers Done', value: stats.completedPapers },
-    { name: 'Notes', value: stats.totalNotes },
-  ] : [];
+  const overviewPie = stats
+    ? [
+        { name: 'Enrolled Subjects', value: stats.totalSubjects },
+        { name: 'Papers Completed', value: stats.completedPapers },
+        { name: 'Uploaded Notes', value: stats.totalNotes },
+      ]
+    : [];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
+    <div className="space-y-6 sm:space-y-8 pb-12">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-gray-900">Analytics</h2>
-          <p className="text-sm text-gray-500">Track your study progress and performance</p>
+          <h2 className="text-2xl font-bold tracking-tight text-slate-900">Performance Analytics</h2>
+          <p className="text-sm text-slate-500 mt-1">
+            Track learning trajectories, score progression, and conceptual mastery
+          </p>
         </div>
-        <select
-          className="input-field w-auto"
-          value={selectedSubject}
-          onChange={e => setSelectedSubject(e.target.value)}
-        >
-          <option value="">— Subject deep dive —</option>
-          {subjects.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
-        </select>
+
+        {/* Subject Deep Dive Dropdown */}
+        <div className="self-start sm:self-auto min-w-[220px]">
+          <select
+            className="input-field"
+            value={selectedSubject}
+            onChange={e => setSelectedSubject(e.target.value)}
+          >
+            <option value="">— Subject Deep-Dive Analysis —</option>
+            {subjects.map(s => (
+              <option key={s._id} value={s._id}>
+                {s.name} ({s.code})
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
-      {/* Summary stats */}
+      {/* Summary KPI Cards */}
       {stats && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
           {[
-            { label: 'Subjects', value: stats.totalSubjects, icon: '📚' },
-            { label: 'Avg Score', value: `${stats.averageScore}%`, icon: '🏆' },
-            { label: 'Papers Done', value: stats.completedPapers, icon: '📝' },
-            { label: 'Upcoming', value: stats.upcomingExamsCount, icon: '📅' },
-            { label: 'Notes', value: stats.totalNotes, icon: '📄' },
-            { label: 'Study Progress', value: `${stats.studyProgress}%`, icon: '🗓️' },
-          ].map(s => (
-            <div key={s.label} className="card text-center py-4">
-              <p className="text-2xl mb-1">{s.icon}</p>
-              <p className="text-xl font-bold text-gray-900">{s.value}</p>
-              <p className="text-xs text-gray-400">{s.label}</p>
-            </div>
-          ))}
+            { label: 'Subjects', value: stats.totalSubjects, icon: IconBookOpen, color: 'text-blue-600 bg-blue-50' },
+            { label: 'Avg Score', value: `${stats.averageScore}%`, icon: IconTrophy, color: 'text-amber-600 bg-amber-50' },
+            { label: 'Papers Done', value: stats.completedPapers, icon: IconClipboardList, color: 'text-emerald-600 bg-emerald-50' },
+            { label: 'Upcoming', value: stats.upcomingExamsCount, icon: IconCalendar, color: 'text-purple-600 bg-purple-50' },
+            { label: 'Notes', value: stats.totalNotes, icon: IconFileText, color: 'text-rose-600 bg-rose-50' },
+            { label: 'Progress', value: `${stats.studyProgress}%`, icon: IconCalendarCheck, color: 'text-indigo-600 bg-indigo-50' },
+          ].map(s => {
+            const Icon = s.icon;
+            return (
+              <div key={s.label} className="card p-4 text-center hover:shadow-soft-md transition-all">
+                <div className={`w-9 h-9 rounded-xl mx-auto mb-2 flex items-center justify-center ${s.color}`}>
+                  <Icon className="w-5 h-5" />
+                </div>
+                <p className="text-xl font-bold text-slate-900">{s.value}</p>
+                <p className="text-xs font-medium text-slate-400 mt-0.5">{s.label}</p>
+              </div>
+            );
+          })}
         </div>
       )}
 
-      {/* Charts row 1 */}
+      {/* Charts Row 1 */}
       {dashboard && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Subject Average Score */}
           <div className="card lg:col-span-2">
-            <h3 className="font-semibold text-gray-900 mb-4">Subject-wise Average Score</h3>
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h3 className="font-bold text-slate-900 text-base">Subject Performance Benchmark</h3>
+                <p className="text-xs text-slate-400">Average exam scores categorized by subject</p>
+              </div>
+              <span className="p-2 bg-slate-50 rounded-xl text-slate-400">
+                <IconBarChart className="w-4 h-4" />
+              </span>
+            </div>
+
             {dashboard.charts.subjectWiseScores.length === 0 ? (
-              <p className="text-gray-400 text-sm text-center py-10">Complete practice papers to see scores</p>
+              <div className="text-center py-16 border border-dashed border-slate-200 rounded-xl">
+                <p className="text-slate-400 text-sm font-medium">Complete practice papers to see subject scores</p>
+              </div>
             ) : (
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={dashboard.charts.subjectWiseScores} margin={{ top: 0, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis dataKey="subjectName" tick={{ fontSize: 11 }} />
-                  <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(v) => [`${v}%`, 'Avg Score']} />
-                  <Bar dataKey="averageScore" radius={[6, 6, 0, 0]}>
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart
+                  data={dashboard.charts.subjectWiseScores}
+                  margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                  <XAxis dataKey="subjectName" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                  <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                  <Tooltip
+                    formatter={(v) => [`${v}%`, 'Average Score']}
+                    contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}
+                  />
+                  <Bar dataKey="averageScore" radius={[6, 6, 0, 0]} maxBarSize={45}>
                     {dashboard.charts.subjectWiseScores.map((_, i) => (
-                      <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                      <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -97,18 +163,42 @@ export default function Analytics() {
             )}
           </div>
 
+          {/* Activity Composition Donut */}
           <div className="card">
-            <h3 className="font-semibold text-gray-900 mb-4">Activity Overview</h3>
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h3 className="font-bold text-slate-900 text-base">Resource Distribution</h3>
+                <p className="text-xs text-slate-400">Proportion of study materials</p>
+              </div>
+              <span className="p-2 bg-slate-50 rounded-xl text-slate-400">
+                <IconTrendingUp className="w-4 h-4" />
+              </span>
+            </div>
+
             {overviewPie.every(d => d.value === 0) ? (
-              <p className="text-gray-400 text-sm text-center py-10">No data yet</p>
+              <div className="text-center py-16 border border-dashed border-slate-200 rounded-xl">
+                <p className="text-slate-400 text-sm font-medium">No activity data available</p>
+              </div>
             ) : (
-              <ResponsiveContainer width="100%" height={240}>
+              <ResponsiveContainer width="100%" height={260}>
                 <PieChart>
-                  <Pie data={overviewPie} cx="50%" cy="50%" innerRadius={55} outerRadius={90}
-                    paddingAngle={4} dataKey="value" label={({ name, value }) => value > 0 ? `${name}: ${value}` : ''} labelLine={false}>
-                    {overviewPie.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  <Pie
+                    data={overviewPie}
+                    cx="50%"
+                    cy="48%"
+                    innerRadius={55}
+                    outerRadius={85}
+                    paddingAngle={4}
+                    dataKey="value"
+                  >
+                    {overviewPie.map((_, i) => (
+                      <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                    ))}
                   </Pie>
-                  <Legend />
+                  <Tooltip
+                    contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0' }}
+                  />
+                  <Legend verticalAlign="bottom" height={36} iconType="circle" />
                 </PieChart>
               </ResponsiveContainer>
             )}
@@ -116,74 +206,153 @@ export default function Analytics() {
         </div>
       )}
 
-      {/* Weekly trend */}
+      {/* Weekly Trend */}
       {dashboard && (
         <div className="card">
-          <h3 className="font-semibold text-gray-900 mb-4">Weekly Score Trend</h3>
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h3 className="font-bold text-slate-900 text-base">Weekly Evaluation Trajectory</h3>
+              <p className="text-xs text-slate-400">Aggregated daily scores over the past 7 days</p>
+            </div>
+            <span className="p-2 bg-slate-50 rounded-xl text-slate-400">
+              <IconTrendingUp className="w-4 h-4" />
+            </span>
+          </div>
+
           {dashboard.charts.weeklyPerformance.length === 0 ? (
-            <p className="text-gray-400 text-sm text-center py-10">No activity this week</p>
+            <div className="text-center py-12 border border-dashed border-slate-200 rounded-xl">
+              <p className="text-slate-400 text-sm font-medium">No test sessions logged this week</p>
+            </div>
           ) : (
             <ResponsiveContainer width="100%" height={220}>
-              <LineChart data={dashboard.charts.weeklyPerformance} margin={{ top: 0, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="day" tick={{ fontSize: 11 }} />
-                <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(v) => [`${v}%`, 'Avg Score']} />
-                <Line type="monotone" dataKey="averageScore" stroke="#8b5cf6" strokeWidth={2.5} dot={{ r: 5, fill: '#8b5cf6' }} activeDot={{ r: 7 }} />
+              <LineChart
+                data={dashboard.charts.weeklyPerformance}
+                margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                <Tooltip
+                  formatter={(v) => [`${v}%`, 'Average Score']}
+                  contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0' }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="averageScore"
+                  stroke="#4f46e5"
+                  strokeWidth={2.5}
+                  dot={{ r: 4, fill: '#4f46e5', strokeWidth: 2, stroke: '#ffffff' }}
+                  activeDot={{ r: 6 }}
+                />
               </LineChart>
             </ResponsiveContainer>
           )}
         </div>
       )}
 
-      {/* Subject deep-dive */}
+      {/* Subject Deep-Dive Panel */}
       {selectedSubject && subjectAnalytics && (
-        <div className="card">
-          <h3 className="font-bold text-gray-900 mb-4">
-            📊 Deep Dive — {subjectAnalytics.subject.name}
-          </h3>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
+        <div className="card space-y-6 border-indigo-200 bg-gradient-to-b from-indigo-50/20 to-white">
+          <div className="flex items-center gap-3 pb-4 border-b border-slate-200/60">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow-sm">
+              {subjectAnalytics.subject.name.charAt(0)}
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-900">
+                Deep Dive: {subjectAnalytics.subject.name}
+              </h3>
+              <p className="text-xs text-slate-400 font-mono">
+                Code: {subjectAnalytics.subject.code}
+              </p>
+            </div>
+          </div>
+
+          {/* Quick Metrics */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
             {[
-              { label: 'Notes', value: subjectAnalytics.stats.totalNotes },
-              { label: 'Papers', value: subjectAnalytics.stats.totalPapers },
+              { label: 'PDF Notes', value: subjectAnalytics.stats.totalNotes },
+              { label: 'Mock Papers', value: subjectAnalytics.stats.totalPapers },
               { label: 'Attempts', value: subjectAnalytics.stats.totalAttempts },
-              { label: 'Avg Score', value: `${subjectAnalytics.stats.averageScore}%` },
-              { label: 'Best Score', value: `${subjectAnalytics.stats.bestScore}%` },
+              { label: 'Average Score', value: `${subjectAnalytics.stats.averageScore}%` },
+              { label: 'Personal Best', value: `${subjectAnalytics.stats.bestScore}%` },
             ].map(s => (
-              <div key={s.label} className="bg-gray-50 rounded-xl p-3 text-center">
-                <p className="text-xl font-bold text-gray-900">{s.value}</p>
-                <p className="text-xs text-gray-400">{s.label}</p>
+              <div key={s.label} className="bg-white rounded-xl p-3.5 text-center border border-slate-200/80 shadow-soft-sm">
+                <p className="text-xl font-bold text-slate-900">{s.value}</p>
+                <p className="text-xs text-slate-400 mt-0.5">{s.label}</p>
               </div>
             ))}
           </div>
 
+          {/* Progression Graph */}
           {subjectAnalytics.scoreProgression.length > 0 && (
-            <div className="mb-6">
-              <p className="text-sm font-medium text-gray-700 mb-2">Score Progression</p>
+            <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-soft-sm">
+              <h4 className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-3">
+                Attempt-by-Attempt Score Progression
+              </h4>
               <ResponsiveContainer width="100%" height={180}>
-                <LineChart data={subjectAnalytics.scoreProgression} margin={{ top: 0, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis dataKey="attempt" tick={{ fontSize: 11 }} label={{ value: 'Attempt', position: 'insideBottom', offset: -5, fontSize: 11 }} />
-                  <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(v) => [`${v}%`, 'Score']} />
-                  <Line type="monotone" dataKey="score" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} />
+                <LineChart
+                  data={subjectAnalytics.scoreProgression}
+                  margin={{ top: 5, right: 10, left: -20, bottom: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                  <XAxis dataKey="attempt" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                  <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                  <Tooltip
+                    formatter={(v) => [`${v}%`, 'Attempt Score']}
+                    contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0' }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="score"
+                    stroke="#10b981"
+                    strokeWidth={2.5}
+                    dot={{ r: 4, fill: '#10b981', strokeWidth: 2, stroke: '#ffffff' }}
+                  />
                 </LineChart>
               </ResponsiveContainer>
             </div>
           )}
 
+          {/* Conceptual Strengths & Weaknesses */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="p-4 bg-green-50 rounded-xl">
-              <p className="text-sm font-semibold text-green-800 mb-2">💪 Strong Areas</p>
-              {subjectAnalytics.strongAreas.length > 0
-                ? subjectAnalytics.strongAreas.map((a, i) => <p key={i} className="text-sm text-green-700">✓ {a}</p>)
-                : <p className="text-sm text-green-600 opacity-60">Complete more papers</p>}
+            <div className="p-5 bg-emerald-50/70 rounded-2xl border border-emerald-100">
+              <div className="flex items-center gap-2 mb-2">
+                <IconCheck className="w-4 h-4 text-emerald-600" />
+                <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-900">
+                  Concept Strengths
+                </h4>
+              </div>
+              {subjectAnalytics.strongAreas.length > 0 ? (
+                <div className="space-y-1.5 pt-1">
+                  {subjectAnalytics.strongAreas.map((a, i) => (
+                    <p key={i} className="text-xs font-medium text-emerald-800 flex items-center gap-1.5">
+                      <span>&bull;</span> {a}
+                    </p>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-emerald-600/70">Complete more papers to pinpoint mastery.</p>
+              )}
             </div>
-            <div className="p-4 bg-red-50 rounded-xl">
-              <p className="text-sm font-semibold text-red-800 mb-2">📌 Weak Areas</p>
-              {subjectAnalytics.weakAreas.length > 0
-                ? subjectAnalytics.weakAreas.map((a, i) => <p key={i} className="text-sm text-red-700">→ {a}</p>)
-                : <p className="text-sm text-red-600 opacity-60">All good so far!</p>}
+
+            <div className="p-5 bg-rose-50/70 rounded-2xl border border-rose-100">
+              <div className="flex items-center gap-2 mb-2">
+                <IconAlertTriangle className="w-4 h-4 text-rose-600" />
+                <h4 className="text-xs font-bold uppercase tracking-wider text-rose-900">
+                  Revision Priorities
+                </h4>
+              </div>
+              {subjectAnalytics.weakAreas.length > 0 ? (
+                <div className="space-y-1.5 pt-1">
+                  {subjectAnalytics.weakAreas.map((a, i) => (
+                    <p key={i} className="text-xs font-medium text-rose-800 flex items-center gap-1.5">
+                      <span>&bull;</span> {a}
+                    </p>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-rose-600/70">No persistent weaknesses detected.</p>
+              )}
             </div>
           </div>
         </div>
