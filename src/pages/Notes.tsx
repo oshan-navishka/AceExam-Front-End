@@ -2,6 +2,8 @@ import { useEffect, useState, useRef } from 'react';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { fetchNotes, uploadNote, deleteNote } from '../store/slices/noteSlice';
 import { fetchSubjects } from '../store/slices/subjectSlice';
+import { noteService } from '../services/noteService';
+import { Note } from '../types';
 import {
   IconFileText,
   IconEye,
@@ -9,7 +11,10 @@ import {
   IconX,
   IconUploadCloud,
   IconAlertTriangle,
-  IconCheckCircle
+  IconCheckCircle,
+  IconDownload,
+  IconExternalLink,
+  IconArrowRight,
 } from '../components/common/Icons';
 
 function formatBytes(bytes: number) {
@@ -30,13 +35,138 @@ export default function Notes() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-  const [preview, setPreview] = useState<{ title: string; text: string } | null>(null);
+
+  // PDF Viewer state
+  const [viewingNote, setViewingNote] = useState<Note | null>(null);
+  const [viewTab, setViewTab] = useState<'pdf' | 'text'>('pdf');
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
+  const [noteExtractedText, setNoteExtractedText] = useState<string>('');
+  const [loadingText, setLoadingText] = useState(false);
+
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     dispatch(fetchNotes());
     dispatch(fetchSubjects());
   }, [dispatch]);
+
+  // Handle PDF blob fetching when viewingNote changes
+  useEffect(() => {
+    if (!viewingNote) {
+      if (pdfBlobUrl) {
+        URL.revokeObjectURL(pdfBlobUrl);
+        setPdfBlobUrl(null);
+      }
+      setPdfError(null);
+      setPdfLoading(false);
+      setNoteExtractedText('');
+      return;
+    }
+
+    let active = true;
+    setPdfLoading(true);
+    setPdfError(null);
+    setViewTab('pdf');
+
+    // Fetch PDF blob
+    noteService
+      .getPdfBlob(viewingNote._id)
+      .then((res) => {
+        if (!active) return;
+        const blob = new Blob([res.data], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        setPdfBlobUrl(url);
+        setPdfLoading(false);
+      })
+      .catch(async (err) => {
+        if (!active) return;
+        console.error('Error fetching note PDF:', err);
+        let msg = 'Failed to load PDF file from server';
+        if (err.response?.data instanceof Blob) {
+          try {
+            const raw = await err.response.data.text();
+            const j = JSON.parse(raw);
+            if (j.message) msg = j.message;
+          } catch {
+            // fallback
+          }
+        } else if (err.response?.data?.message) {
+          msg = err.response.data.message;
+        }
+        setPdfError(msg);
+        setPdfLoading(false);
+      });
+
+    // Populate extracted text
+    if (viewingNote.extractedText) {
+      setNoteExtractedText(viewingNote.extractedText);
+    } else {
+      setLoadingText(true);
+      noteService
+        .getById(viewingNote._id)
+        .then((res) => {
+          if (!active) return;
+          setNoteExtractedText(res.data.note?.extractedText || 'No text extracted yet.');
+        })
+        .catch(() => {
+          if (!active) return;
+          setNoteExtractedText('Failed to load extracted text.');
+        })
+        .finally(() => {
+          if (active) setLoadingText(false);
+        });
+    }
+
+    return () => {
+      active = false;
+    };
+  }, [viewingNote]);
+
+  const handleOpenPdf = (note: Note) => {
+    setViewingNote(note);
+  };
+
+  const handleOpenInNewTab = async (note: Note) => {
+    try {
+      if (viewingNote?._id === note._id && pdfBlobUrl) {
+        window.open(pdfBlobUrl, '_blank');
+        return;
+      }
+      const res = await noteService.getPdfBlob(note._id);
+      const blob = new Blob([res.data], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+    } catch {
+      const directUrl = noteService.getPdfUrl(note._id);
+      window.open(directUrl, '_blank');
+    }
+  };
+
+  const handleDownload = async (note: Note) => {
+    try {
+      let downloadUrl = pdfBlobUrl;
+      let shouldRevoke = false;
+      if (!downloadUrl || viewingNote?._id !== note._id) {
+        const res = await noteService.getPdfBlob(note._id);
+        const blob = new Blob([res.data], { type: 'application/pdf' });
+        downloadUrl = URL.createObjectURL(blob);
+        shouldRevoke = true;
+      }
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = note.fileName || `${note.title}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      if (shouldRevoke) {
+        setTimeout(() => URL.revokeObjectURL(downloadUrl!), 1000);
+      }
+    } catch (e) {
+      console.error('Download error:', e);
+    }
+  };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -130,11 +260,18 @@ export default function Notes() {
                     </div>
                     <div className="flex items-center gap-1">
                       <button
-                        onClick={() => setPreview({ title: note.title, text: note.extractedText })}
+                        onClick={() => handleOpenPdf(note)}
                         className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors"
-                        title="Preview extracted text"
+                        title="View PDF Document"
                       >
                         <IconEye className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleOpenInNewTab(note)}
+                        className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors"
+                        title="Open PDF in new tab"
+                      >
+                        <IconExternalLink className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => setDeleteConfirm(note._id)}
@@ -174,10 +311,11 @@ export default function Notes() {
                 <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
                   <span>Uploaded {new Date(note.createdAt).toLocaleDateString()}</span>
                   <button
-                    onClick={() => setPreview({ title: note.title, text: note.extractedText })}
-                    className="font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+                    onClick={() => handleOpenPdf(note)}
+                    className="font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 transition-colors"
                   >
-                    View Text &rarr;
+                    <span>View PDF</span>
+                    <IconArrowRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
@@ -320,34 +458,157 @@ export default function Notes() {
         </div>
       )}
 
-      {/* Extracted Text Preview Drawer / Modal */}
-      {preview && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col p-6 sm:p-8 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
+      {/* PDF & Extracted Text Viewer Modal */}
+      {viewingNote && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4 md:p-6">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-5xl h-[92vh] flex flex-col p-4 sm:p-6 animate-in fade-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3.5 border-b border-slate-100 mb-3 gap-3 shrink-0">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                <div className="w-10 h-10 rounded-xl bg-rose-50 border border-rose-100 text-rose-600 flex items-center justify-center shrink-0">
                   <IconFileText className="w-5 h-5" />
                 </div>
                 <div className="min-w-0">
-                  <h3 className="text-base font-bold text-slate-900 truncate">{preview.title}</h3>
-                  <p className="text-xs text-slate-400">Extracted Text Content</p>
+                  <h3 className="text-base font-bold text-slate-900 truncate">
+                    {viewingNote.title}
+                  </h3>
+                  <div className="flex items-center gap-2 text-xs text-slate-400 truncate">
+                    <span className="truncate">{viewingNote.fileName}</span>
+                    <span>•</span>
+                    <span>{formatBytes(viewingNote.fileSize)}</span>
+                  </div>
                 </div>
               </div>
+
+              {/* Controls and Tabs */}
+              <div className="flex items-center gap-2 self-end sm:self-auto flex-wrap">
+                {/* View Tabs */}
+                <div className="inline-flex bg-slate-100 p-0.5 rounded-xl text-xs font-semibold">
+                  <button
+                    onClick={() => setViewTab('pdf')}
+                    className={`px-3 py-1.5 rounded-lg transition-all ${
+                      viewTab === 'pdf'
+                        ? 'bg-white text-indigo-600 shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    PDF Document
+                  </button>
+                  <button
+                    onClick={() => setViewTab('text')}
+                    className={`px-3 py-1.5 rounded-lg transition-all ${
+                      viewTab === 'text'
+                        ? 'bg-white text-indigo-600 shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Extracted Text
+                  </button>
+                </div>
+
+                <div className="h-5 w-px bg-slate-200 hidden sm:block mx-0.5" />
+
+                {/* Open in new tab */}
+                <button
+                  onClick={() => handleOpenInNewTab(viewingNote)}
+                  className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors flex items-center gap-1.5 text-xs font-medium"
+                  title="Open in new browser tab"
+                >
+                  <IconExternalLink className="w-4 h-4" />
+                  <span className="hidden md:inline">Open in Tab</span>
+                </button>
+
+                {/* Download */}
+                <button
+                  onClick={() => handleDownload(viewingNote)}
+                  className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors flex items-center gap-1.5 text-xs font-medium"
+                  title="Download PDF"
+                >
+                  <IconDownload className="w-4 h-4" />
+                  <span className="hidden md:inline">Download</span>
+                </button>
+
+                {/* Close */}
+                <button
+                  onClick={() => setViewingNote(null)}
+                  className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                  title="Close viewer"
+                >
+                  <IconX className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Viewer Content */}
+            <div className="flex-1 min-h-0 relative">
+              {viewTab === 'pdf' ? (
+                <div className="w-full h-full rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 relative">
+                  {pdfLoading ? (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-50">
+                      <div className="spinner w-8 h-8 text-indigo-600" />
+                      <p className="text-sm font-medium text-slate-600">Loading PDF document...</p>
+                    </div>
+                  ) : pdfError ? (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-slate-50">
+                      <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-500 flex items-center justify-center mb-3">
+                        <IconAlertTriangle className="w-6 h-6" />
+                      </div>
+                      <h4 className="text-sm font-bold text-slate-900 mb-1">Could not display PDF</h4>
+                      <p className="text-xs text-slate-500 max-w-sm mb-4">{pdfError}</p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleOpenInNewTab(viewingNote)}
+                          className="btn-primary text-xs gap-1.5"
+                        >
+                          <IconExternalLink className="w-3.5 h-3.5" />
+                          <span>Try in New Tab</span>
+                        </button>
+                        <button
+                          onClick={() => setViewTab('text')}
+                          className="btn-secondary text-xs"
+                        >
+                          View Extracted Text
+                        </button>
+                      </div>
+                    </div>
+                  ) : pdfBlobUrl ? (
+                    <iframe
+                      src={pdfBlobUrl}
+                      title={viewingNote.title}
+                      className="w-full h-full border-0 bg-white"
+                    />
+                  ) : null}
+                </div>
+              ) : (
+                <div className="w-full h-full overflow-y-auto p-4 sm:p-6 bg-slate-50 rounded-2xl border border-slate-200 text-xs sm:text-sm text-slate-700 font-mono whitespace-pre-wrap leading-relaxed select-text">
+                  {loadingText ? (
+                    <div className="flex items-center justify-center h-full gap-2 text-slate-400">
+                      <div className="spinner w-5 h-5" />
+                      <span>Loading extracted text...</span>
+                    </div>
+                  ) : (
+                    noteExtractedText || 'No text extracted yet.'
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="pt-3 mt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400 shrink-0">
+              <div className="flex items-center gap-2">
+                <span>
+                  Subject:{' '}
+                  <strong className="text-slate-600 font-medium">
+                    {(viewingNote.subjectId as any)?.name || 'General Material'}
+                  </strong>
+                </span>
+                <span>•</span>
+                <span>Uploaded {new Date(viewingNote.createdAt).toLocaleDateString()}</span>
+              </div>
               <button
-                onClick={() => setPreview(null)}
-                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors shrink-0"
+                onClick={() => setViewingNote(null)}
+                className="btn-secondary text-xs py-1.5 px-4"
               >
-                <IconX className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4 bg-slate-50 rounded-2xl border border-slate-200 text-xs sm:text-sm text-slate-700 font-mono whitespace-pre-wrap leading-relaxed select-text">
-              {preview.text || 'No text extracted yet.'}
-            </div>
-
-            <div className="pt-4 mt-2 flex justify-end">
-              <button onClick={() => setPreview(null)} className="btn-secondary text-xs">
                 Close Preview
               </button>
             </div>
