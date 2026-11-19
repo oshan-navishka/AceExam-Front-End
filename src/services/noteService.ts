@@ -13,7 +13,7 @@ export const noteService = {
 
   getPdfUrl: (id: string) => {
     const token = localStorage.getItem('token') || '';
-    const base = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+    const base = import.meta.env.VITE_API_URL || 'https://backendnew-production-541d1fe9.up.railway.app/api';
     return `${base}/notes/${id}/pdf?token=${encodeURIComponent(token)}`;
   },
 
